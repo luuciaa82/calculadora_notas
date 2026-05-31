@@ -758,11 +758,11 @@
       document.getElementById("indice-numero").textContent = datos.indice.toFixed(4);
 
       let cal = "";
-      if (datos.indice >= 2.5)      cal = "Rendimiento Sobresaliente";
-      else if (datos.indice >= 1.5) cal = "Buen Rendimiento";
-      else if (datos.indice >= 1.0) cal = "Rendimiento Regular";
-      else if (datos.indice > 0)    cal = "Rendimiento Bajo";
-      else                          cal = "Sin Puntos Acumulados";
+      if (datos.indice >= 2.5)      cal = "Eres un crack";
+      else if (datos.indice >= 1.5) cal = "Vas bien";
+      else if (datos.indice >= 1.0) cal = "Meg, sobreviviendo";
+      else if (datos.indice > 0)    cal = "Métele salsa que te quedas";
+      else                          cal = "XD";
       document.getElementById("indice-calificacion").textContent = cal;
 
       const pct = Math.min((datos.indice / 3.0) * 100, 100);
