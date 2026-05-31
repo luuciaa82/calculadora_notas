@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <!-- ============================================================
+    CALCULADORA DE ÍNDICE ACADÉMICO - UTP PANAMÁ
+    Paleta: violetas institucionales UTP
+    Fuentes: IBM Plex Sans (títulos y cuerpo) — recta, mayúsculas, sobria
+  ============================================================ -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calculadora Académica · UTP Panamá</title>
+
+  <!-- IBM Plex Sans: tipografía técnica, recta, sin adornos -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<!-- Guarda la preferencia del usuario en el navegador -->
+<script>
+  if (localStorage.getItem("modo") === "claro") {
+    document.documentElement.setAttribute("data-tema", "claro");
+  }
+</script>
+  <style>
+    /* ──────────────────────────────────────────────────────────
+       VARIABLES DE COLOR – Paleta oficial UTP Panamá
+    ────────────────────────────────────────────────────────── */
+    :root {
+      --bg-deep:      #151417;   /* Fondo principal de la página */
+      --bg-card:      #1c1822;   /* Fondo de las tarjetas */
+      --bg-input:     #1e1032;   /* Fondo de los campos de texto */
+      --border:       #3d1a6e;   /* Bordes y líneas */
+      --accent-1:     #3d1a6e;   /* Botones y elementos principales */
+      --accent-2:     #6b21a8;   /* Hover y acentos secundarios */
+      --accent-3:     #c4b5fd;   /* Textos claros */
+      --text-main:    #f0ecff;   /* Texto principal */
+      --text-muted:   #9b87c0;   /* Texto secundario apagado */
+      --success:      #08c842;   /* Nota A */
+      --warning:      #dcdc1b;   /* Nota B y C */
+      --danger:       #e21515;   /* Nota F */
+      --info:         #ffb81d;   /* Nota D */
+      --glow:         rgba(61, 26, 110, 0.3);
+    }
+
+    /* ── Reset y base ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-main);
+      min-height: 100vh;
+      font-size: 15px;
+    }
+
+    /* ── Contenedor central ─────────────────────────────────── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 4vw 4rem;   /* margen lateral proporcional al ancho de pantalla */
+    }
+
+    /* ── Encabezado ─────────────────────────────────────────── */
+    header {
+      padding: 2.5rem 0 2rem;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 2rem;
+    }
+
+    /* Insignia institucional */
+    .badge {
+      display: inline-block;
+      background: var(--accent-1);
+      color: #e9d5ff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.85rem;
+      border-radius: 2px;
+      margin-bottom: 0.9rem;
+    }
+
+    h1 {
+      font-size: clamp(1.5rem, 4vw, 2.2rem);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-main);
+      line-height: 1.2;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      max-width: 500px;
+    }
+
+    /* ── Tarjeta ────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .card-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent-3);
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Tabla de escala UTP ────────────────────────────────── */
+    .scale-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .scale-item {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.75rem 0.4rem;
+      text-align: center;
+    }
+
+    .scale-letter {
+      font-size: 1.6rem;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+    .scale-range { font-size: 0.68rem; color: var(--text-muted); margin: 0.25rem 0 0.15rem; }
+    .scale-pts   { font-size: 0.72rem; font-weight: 600; }
+    .scale-desc  { font-size: 0.62rem; color: var(--text-muted); margin-top: 0.1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .grade-a { color: var(--success); }
+    .grade-b { color: #6ee7b7; }
+    .grade-c { color: var(--warning); }
+    .grade-d { color: var(--info); }
+    .grade-f { color: var(--danger); }
+
+    /* ── Filas de materias ──────────────────────────────────── */
+    #materias-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .materia-row {
+      display: grid;
+      grid-template-columns: 1fr 80px 90px 80px 28px;
+      gap: 0.5rem;
+      align-items: end;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.65rem 0.85rem;
+      animation: slideIn 0.2s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .field-label {
+      font-size: 0.6rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    /* Inputs ─────────────────────────────────────────────────── */
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 2px;
+      padding: 0.45rem 0.65rem;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--accent-3); }
+    input::placeholder { color: var(--text-muted); font-size: 0.82rem; }
+
+    /* Chip de letra ─────────────────────────────────────────── */
+    .result-chip {
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 0.45rem 0.4rem;
+      text-align: center;
+    }
+    .chip-letter {
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .chip-pts {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      margin-top: 0.1rem;
+    }
+
+    /* Botón eliminar ────────────────────────────────────────── */
+    .btn-remove {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      width: 28px; height: 28px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-remove:hover { color: var(--danger); border-color: var(--danger); background: rgba(252,165,165,0.07); }
+
+    /* ── Botones ─────────────────────────────────────────────── */
+    .btn-row {
+      display: flex;
+      gap: 0.6rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 0.6rem 1.25rem;
+      border-radius: 2px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent-1);
+      color: #e9d5ff;
+      flex: 1;
+      border: 1px solid var(--accent-2);
+    }
+    .btn-primary:hover { background: var(--accent-2); }
+
+    .btn-secondary {
+      background: var(--bg-input);
+      color: var(--accent-3);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--accent-3); }
+
+    .btn-ghost {
+      background: none;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      padding: 0.6rem 1rem;
+    }
+    .btn-ghost:hover { color: var(--danger); border-color: var(--danger); }
+
+    /* ── Resultados ──────────────────────────────────────────── */
+    #resultados {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Tarjeta del índice */
+    .indice-card {
+      background: var(--bg-card);
+      border: 1px solid var(--accent-1);
+      border-top: 3px solid var(--accent-2);
+      border-radius: 4px;
+      padding: 2rem;
+      text-align: center;
+      margin-bottom: 1.25rem;
+    }
+
+    .indice-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .indice-valor {
+      font-size: clamp(3rem, 10vw, 5rem);
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    #indice-calificacion {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-3);
+      margin-bottom: 1rem;
+    }
+
+    /* Barra del índice */
+    .indice-bar-wrap { max-width: 300px; margin: 0 auto; }
+    .indice-bar-bg {
+      background: var(--bg-input);
+      border-radius: 1px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .indice-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-1), var(--accent-3));
+      transition: width 0.7s ease;
+      width: 0%;
+    }
+    .indice-bar-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+    }
+
+    /* Stats ─────────────────────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .stat-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent-3);
+    }
+    .stat-label {
+      font-size: 0.62rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* Tabla de detalle ──────────────────────────────────────── */
+    .detail-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+    .detail-table th {
+      text-align: left;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid rgba(61,26,110,0.4);
+    }
+    .detail-table tr:last-child td { border-bottom: none; }
+    .detail-table tr:hover td { background: rgba(61,26,110,0.12); }
+
+    /* Footer ────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 2rem 0 0;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      border-top: 1px solid var(--border);
+      margin-top: 1rem;
+    }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+
+    /* Tabletas (601px – 900px): reducir columnas de materia */
+    @media (max-width: 900px) {
+      .materia-row {
+        grid-template-columns: 1fr 75px 85px 72px 28px;
+      }
+    }
+
+    /* Móvil grande (max 600px) */
+    @media (max-width: 600px) {
+      .container { padding: 1.25rem 1rem 3rem; }
+
+      h1 { font-size: 1.3rem; letter-spacing: 0.04em; }
+
+      /* Filas de materia: nombre arriba, resto abajo */
+      .materia-row {
+        grid-template-columns: 1fr 1fr 1fr 28px;
+        grid-template-rows: auto auto;
+        gap: 0.4rem;
+      }
+      .field-group:first-child { grid-column: 1 / -1; }  /* nombre ocupa fila entera */
+
+      .scale-grid  { grid-template-columns: repeat(3, 1fr); }
+      .stats-row   { grid-template-columns: 1fr 1fr; }
+
+      .btn-row     { flex-direction: column; }
+      .btn-primary { flex: none; width: 100%; }
+
+      .detail-table { font-size: 0.78rem; }
+      .detail-table th,
+      .detail-table td { padding: 0.45rem 0.4rem; }
+    }
+
+    /* Móvil pequeño (max 400px) */
+    @media (max-width: 400px) {
+      .materia-row {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto auto;
+      }
+      .field-group:first-child  { grid-column: 1 / -1; }
+      .field-group:nth-child(4) { grid-column: 1 / 2; } /* chip */
+      .btn-remove               { grid-column: 2 / 3; justify-self: end; }
+
+      .scale-grid { grid-template-columns: repeat(2, 1fr); }
+      .stats-row  { grid-template-columns: 1fr; }
+
+      /* Ocultar columnas menos críticas en tabla */
+      .detail-table th:nth-child(5),
+      .detail-table td:nth-child(5) { display: none; }
+    }
+    /* ── Modo claro ─────────────────────────────────────────── */
+[data-tema="claro"] {
+  --bg-deep:    #fefcff;
+  --bg-card:    #f9f4ff;
+  --bg-input:   #f0eaff;
+  --border:     #ddd0f5;
+  --accent-1:   #5b0f96;
+  --accent-2:   #7c1fc2;
+  --accent-3:   #5b0f96;
+  --text-main:  #1a0a2e;
+  --text-muted: #6b4a90;
+  --glow:       rgba(61, 26, 110, 0.12);
+}
+
+/* Botón del toggle ─────────────────────────────────────── */
+.btn-tema {
+  position: fixed;       /* flota en la esquina superior derecha */
+  top: 1.25rem;
+  right: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 999;
+  transition: all 0.2s;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+.btn-tema:hover {
+  border-color: var(--accent-2);
+  background: var(--bg-input);
+}
+  </style>
+</head>
+
+<body>
+  <!-- Botón flotante para cambiar entre modo oscuro y claro -->
+<button class="btn-tema" onclick="toggleTema()" id="btn-tema">🌙</button>
+
+<script>
+  function toggleTema() {
+    const html   = document.documentElement;
+    const btn    = document.getElementById("btn-tema");
+    const actual = html.getAttribute("data-tema");
+
+    if (actual === "claro") {
+      html.removeAttribute("data-tema");
+      btn.textContent = "🌙";
+      localStorage.setItem("modo", "oscuro");
+    } else {
+      html.setAttribute("data-tema", "claro");
+      btn.textContent = "☀️";
+      localStorage.setItem("modo", "claro");
+    }
+  }
+
+  // Al cargar, poner el ícono correcto según la preferencia guardada
+  if (localStorage.getItem("modo") === "claro") {
+    document.getElementById("btn-tema").textContent = "☀️";
+  }
+</script>
+  <div class="container">
+
+    <!-- Encabezado -->
+    <header>
+      <div class="badge">UTP · Panamá</div>
+      <h1>Calculadora de Índice Académico</h1>
+      <p>Ingresa tus materias, créditos y notas para calcular tu índice académico automáticamente.</p>
+    </header>
+
+    <!-- Tabla de escala UTP -->
+    <div class="card">
+      <div class="card-title">Escala de Calificaciones — Sistema UTP</div>
+      <div class="scale-grid">
+        <div class="scale-item">
+          <div class="scale-letter grade-a">A</div>
+          <div class="scale-range">91 – 100</div>
+          <div class="scale-pts grade-a">3 puntos</div>
+          <div class="scale-desc">Excelente</div>
+        </div>
+        <div class="scale-item">
+          <div class="scale-letter grade-b">B</div>
+          <div class="scale-range">81 – 90</div>
+          <div class="scale-pts grade-b">2 puntos</div>
+          <div class="scale-desc">Bueno</div>
+        </div>
+        <div class="scale-item">
+          <div class="scale-letter grade-c">C</div>
+          <div class="scale-range">71 – 80</div>
+          <div class="scale-pts grade-c">1 punto</div>
+          <div class="scale-desc">Regular</div>
+        </div>
+        <div class="scale-item">
+          <div class="scale-letter grade-d">D</div>
+          <div class="scale-range">61 – 70</div>
+          <div class="scale-pts grade-d">0 puntos</div>
+          <div class="scale-desc">Deficiente</div>
+        </div>
+        <div class="scale-item">
+          <div class="scale-letter grade-f">F</div>
+          <div class="scale-range">0 – 60</div>
+          <div class="scale-pts grade-f">0 puntos</div>
+          <div class="scale-desc">Reprobado</div>
+        </div>
+      </div>
+
+      <!-- Formulario de materias -->
+      <div class="card-title">Mis Materias</div>
+      <div id="materias-container"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="agregarMateria()">+ Agregar Materia</button>
+        <button class="btn btn-primary" onclick="calcular()">Calcular Índice Académico</button>
+        <button class="btn btn-ghost" onclick="limpiar()">Limpiar</button>
+      </div>
+    </div>
+
+    <!-- Resultados -->
+    <div id="resultados">
+
+      <div class="indice-card">
+        <div class="indice-label">Índice Académico Calculado</div>
+        <div class="indice-valor" id="indice-numero">0.00</div>
+        <div id="indice-calificacion"></div>
+        <div class="indice-bar-wrap">
+          <div class="indice-bar-bg">
+            <div class="indice-bar-fill" id="indice-barra"></div>
+          </div>
+          <div class="indice-bar-ticks">
+            <span>0.0</span><span>0.75</span><span>1.5</span><span>2.25</span><span>3.0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-value" id="stat-creditos">—</div>
+          <div class="stat-label">Créditos Totales</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-puntos">—</div>
+          <div class="stat-label">Puntos Totales</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-materias">—</div>
+          <div class="stat-label">Materias</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Detalle por Materia</div>
+        <table class="detail-table">
+          <thead>
+            <tr>
+              <th>Materia</th>
+              <th>Nota</th>
+              <th>Letra</th>
+              <th>Créditos</th>
+              <th>Pts/Letra</th>
+              <th>Pts Totales</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-detalle"></tbody>
+        </table>
+      </div>
+
+    </div>
+
+   <footer>
+  <p style="margin-top: 0.5rem; font-size: 1.2rem;">
+    © 2025 &nbsp;·&nbsp; PROPIEDAD INTELECTUAL DE <strong style="color: var(--accent-3);">ANA GONZÁLEZ</strong>
+    &nbsp;·&nbsp; CONTACTAR: ana.gonzalez29@utp.ac.pa
+  </p>
+  <p style="margin-top: 0.5rem; font-size: 1rem;"> Pressencia de inteligencia artificial &nbsp;·&nbsp; Basado en el sistema de notas de la Universidad Tecnológica de Panamá</p>
+  <p style="margin-top: 0.5rem; font-size: 0.75rem;">AVISO DE PRIVACIDAD — La información ingresada en esta calculadora es de uso exclusivamente personal.
+    Los datos suministrados no 
+    son almacenados, compartidos ni utilizados bajo ningún fin externo.
+    Su privacidad está completamente garantizada.</p>
+</footer>
+
+  </div>
+
+  <script>
+    // Escala de calificaciones UTP (espejo del backend para tiempo real)
+    const ESCALA = [
+      { min: 91, max: 100, letra: "A", pts: 3, color: "var(--success)" },
+      { min: 81, max: 90,  letra: "B", pts: 2, color: "#6ee7b7" },
+      { min: 71, max: 80,  letra: "C", pts: 1, color: "var(--warning)" },
+      { min: 61, max: 70,  letra: "D", pts: 0, color: "var(--info)" },
+      { min: 0,  max: 60,  letra: "F", pts: 0, color: "var(--danger)" },
+    ];
+
+    function clasificarNota(nota) {
+      for (const r of ESCALA) {
+        if (nota >= r.min && nota <= r.max) return r;
+      }
+      return ESCALA[4];
+    }
+
+    let contadorMaterias = 0;
+
+    function agregarMateria(nombre = "", creditos = "", nota = "") {
+      const id = ++contadorMaterias;
+      const container = document.getElementById("materias-container");
+      const row = document.createElement("div");
+      row.className = "materia-row";
+      row.id = `materia-${id}`;
+      row.innerHTML = `
+        <div class="field-group">
+          <label class="field-label">Materia</label>
+          <input type="text" placeholder="Ej: Cálculo I" value="${nombre}" id="nombre-${id}" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Créditos</label>
+          <input type="number" placeholder="3" min="1" max="9" value="${creditos}" id="creditos-${id}" oninput="actualizarChip(${id})" />
+        </div>
+        <div class="field-group">
+          <label class="field-label">Nota (0–100)</label>
+          <input type="number" placeholder="85" min="0" max="100" step="0.1" value="${nota}" id="nota-${id}" oninput="actualizarChip(${id})" />
+        </div>
+        <div class="result-chip" id="chip-${id}">
+          <div class="chip-letter">—</div>
+          <div class="chip-pts">pts</div>
+        </div>
+        <button class="btn-remove" onclick="eliminarMateria(${id})" title="Eliminar">×</button>
+      `;
+      container.appendChild(row);
+      if (nota !== "") actualizarChip(id);
+    }
+
+    function eliminarMateria(id) {
+      const row = document.getElementById(`materia-${id}`);
+      if (row) row.remove();
+    }
+
+    function actualizarChip(id) {
+      const notaInput     = document.getElementById(`nota-${id}`);
+      const creditosInput = document.getElementById(`creditos-${id}`);
+      const chip          = document.getElementById(`chip-${id}`);
+      if (!notaInput || !chip) return;
+      const nota     = parseFloat(notaInput.value);
+      const creditos = parseFloat(creditosInput?.value) || 0;
+      if (isNaN(nota)) {
+        chip.innerHTML = `<div class="chip-letter">—</div><div class="chip-pts">pts</div>`;
+        return;
+      }
+      const info     = clasificarNota(nota);
+      const ptsTotal = creditos * info.pts;
+      chip.innerHTML = `
+        <div class="chip-letter" style="color:${info.color}">${info.letra}</div>
+        <div class="chip-pts">${creditos ? ptsTotal + ' pts' : info.pts + ' pts/cr'}</div>
+      `;
+    }
+
+    async function calcular() {
+      const filas   = document.querySelectorAll(".materia-row");
+      const materias = [];
+      for (const fila of filas) {
+        const idMatch = fila.id.match(/materia-(\d+)/);
+        if (!idMatch) continue;
+        const id       = idMatch[1];
+        const nombre   = document.getElementById(`nombre-${id}`)?.value.trim() || "Sin nombre";
+        const creditos = parseFloat(document.getElementById(`creditos-${id}`)?.value);
+        const nota     = parseFloat(document.getElementById(`nota-${id}`)?.value);
+        if (isNaN(creditos) || isNaN(nota)) continue;
+        materias.push({ nombre, creditos, nota });
+      }
+      if (materias.length === 0) {
+        alert("Ingresa al menos una materia con créditos y nota.");
+        return;
+      }
+      try {
+        const respuesta = await fetch("/calcular", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ materias })
+        });
+        if (!respuesta.ok) throw new Error("Error del servidor");
+        const datos = await respuesta.json();
+        mostrarResultados(datos);
+      } catch (error) {
+        alert("Error al calcular. Verifica que el servidor esté corriendo.");
+        console.error(error);
+      }
+    }
+
+    function mostrarResultados(datos) {
+      const seccion = document.getElementById("resultados");
+      seccion.style.display = "block";
+      document.getElementById("indice-numero").textContent = datos.indice.toFixed(4);
+
+      let cal = "";
+      if (datos.indice >= 2.5)      cal = "Rendimiento Sobresaliente";
+      else if (datos.indice >= 1.5) cal = "Buen Rendimiento";
+      else if (datos.indice >= 1.0) cal = "Rendimiento Regular";
+      else if (datos.indice > 0)    cal = "Rendimiento Bajo";
+      else                          cal = "Sin Puntos Acumulados";
+      document.getElementById("indice-calificacion").textContent = cal;
+
+      const pct = Math.min((datos.indice / 3.0) * 100, 100);
+      setTimeout(() => { document.getElementById("indice-barra").style.width = pct + "%"; }, 100);
+
+      document.getElementById("stat-creditos").textContent = datos.total_creditos;
+      document.getElementById("stat-puntos").textContent   = datos.total_puntos;
+      document.getElementById("stat-materias").textContent = datos.materias.length;
+
+      const tbody = document.getElementById("tabla-detalle");
+      tbody.innerHTML = "";
+      for (const m of datos.materias) {
+        const info = clasificarNota(m.nota);
+        const fila = document.createElement("tr");
+        fila.innerHTML = `
+          <td>${m.nombre}</td>
+          <td>${m.nota.toFixed(1)}</td>
+          <td style="font-weight:700; color:${info.color}">${m.letra}</td>
+          <td>${m.creditos}</td>
+          <td>${m.puntos_letra}</td>
+          <td style="font-weight:600; color:var(--accent-3)">${m.puntos_total}</td>
+        `;
+        tbody.appendChild(fila);
+      }
+      seccion.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function limpiar() {
+      document.getElementById("materias-container").innerHTML = "";
+      document.getElementById("resultados").style.display = "none";
+      document.getElementById("indice-barra").style.width = "0%";
+      contadorMaterias = 0;
+      cargarMateriasIniciales();
+    }
+
+    function cargarMateriasIniciales() {
+      const ejemplos = [
+        { nombre: "Cálculo I",                      creditos: 5, nota: "" },
+        { nombre: "Física I (Mecánica)",             creditos: 5, nota: "" },
+        { nombre: "Inglés I",                        creditos: 3, nota: "" },
+        { nombre: "Comunicación Oral y Escrita",     creditos: 3, nota: "" },
+        { nombre: "Desarrollo Lógico y Algoritmos",  creditos: 4, nota: "" },
+        { nombre: "Química I",                       creditos: 4, nota: "" },
+      ];
+      for (const ej of ejemplos) agregarMateria(ej.nombre, ej.creditos, ej.nota);
+    }
+
+    cargarMateriasIniciales();
+  </script>
+</body>
+</html>
