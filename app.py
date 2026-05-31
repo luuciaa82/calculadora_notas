@@ -2,33 +2,133 @@
 =============================================================
   CALCULADORA DE ÍNDICE ACADÉMICO - UTP PANAMÁ
   Desarrollado con Flask (Python) + HTML/CSS/JS
-  
-  Archivo principal: app.py
-  Este archivo inicia el servidor web y define las rutas (URLs)
-  que la página web puede visitar.
+
+  SEGURIDAD APLICADA:
+  - Rate limiting: máximo de peticiones por IP
+  - Cabeceras HTTP de seguridad (anti-clickjacking, XSS, etc.)
+  - Validación estricta de todos los inputs
+  - Límite de materias por petición
+  - Límite de tamaño del JSON entrante
+  - Sanitización de texto (nombre de materia)
 =============================================================
 """
 
-# ── Importaciones necesarias ──────────────────────────────────────────────────
-from flask import Flask, render_template, request, jsonify  # Framework web
-import json  # Para manejar datos en formato JSON entre Python y JavaScript
+# ── Importaciones ─────────────────────────────────────────────────────────────
+from flask import Flask, render_template, request, jsonify
+from functools import wraps
+import time
+import re
 
-# ── Creación de la aplicación Flask ───────────────────────────────────────────
-# Flask(__name__) le dice a Flask que use este archivo como punto de partida.
-# Buscará las carpetas "templates/" y "static/" automáticamente.
+# ── Creación de la app ────────────────────────────────────────────────────────
 app = Flask(__name__)
 
+# ── Límite de tamaño máximo del body de la petición (16 KB) ──────────────────
+# Evita que alguien envíe un JSON gigante para saturar la memoria del servidor.
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024  # 16 KB máximo
 
-# ── Tabla de calificaciones según el sistema UTP Panamá ───────────────────────
-# En la UTP, las notas van de 0 a 100 puntos y se convierten a letras así:
-#   A = 91-100  → 3 puntos (excelente)
-#   B = 81-90   → 2 puntos (bueno)
-#   C = 71-80   → 1 punto  (regular)
-#   D = 61-70   → 0 puntos (deficiente, pero aprobado)
-#   F = 0-60    → 0 puntos (reprobado)
-#
-# El índice académico se calcula con:
-#   Índice = Suma(créditos × puntos_por_letra) / Total de créditos
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  RATE LIMITING — Protección contra abuso y ataques de fuerza bruta
+#  Limita cuántas peticiones puede hacer una misma IP en un período de tiempo.
+#  Implementado manualmente (sin librería externa) para simplicidad.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Diccionario en memoria: { "ip": [timestamp1, timestamp2, ...] }
+# Guarda el historial de peticiones por IP
+historial_peticiones = {}
+
+# Configuración del rate limit
+LIMITE_PETICIONES = 30   # máximo de peticiones permitidas...
+VENTANA_SEGUNDOS  = 60   # ...dentro de este período (1 minuto)
+
+
+def rate_limit(f):
+    """
+    Decorador que aplica rate limiting a una ruta Flask.
+    Si una IP supera el límite, devuelve error 429 (Too Many Requests).
+    Se coloca con @rate_limit encima de cualquier ruta que queramos proteger.
+    """
+    @wraps(f)
+    def decorador(*args, **kwargs):
+        # Obtener la IP real del cliente
+        # X-Forwarded-For es el header que usa Render/proxies para pasar la IP real
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+        if ip and "," in ip:
+            ip = ip.split(",")[0].strip()  # Tomar solo la primera IP si hay varias
+
+        ahora = time.time()
+
+        # Inicializar historial para esta IP si es la primera vez
+        if ip not in historial_peticiones:
+            historial_peticiones[ip] = []
+
+        # Limpiar peticiones antiguas fuera de la ventana de tiempo
+        historial_peticiones[ip] = [
+            t for t in historial_peticiones[ip]
+            if ahora - t < VENTANA_SEGUNDOS
+        ]
+
+        # Verificar si superó el límite
+        if len(historial_peticiones[ip]) >= LIMITE_PETICIONES:
+            return jsonify({
+                "error": "Demasiadas peticiones. Espera un momento antes de continuar."
+            }), 429  # HTTP 429 = Too Many Requests
+
+        # Registrar esta petición
+        historial_peticiones[ip].append(ahora)
+
+        return f(*args, **kwargs)
+    return decorador
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  CABECERAS DE SEGURIDAD HTTP
+#  Se aplican automáticamente a TODAS las respuestas del servidor.
+#  Protegen contra los ataques más comunes del navegador.
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.after_request
+def agregar_cabeceras_seguridad(response):
+    """
+    Este hook se ejecuta después de cada respuesta.
+    Agrega cabeceras HTTP que le dicen al navegador cómo protegerse.
+    """
+
+    # Evita que la página se cargue dentro de un <iframe> (anti-clickjacking)
+    response.headers["X-Frame-Options"] = "DENY"
+
+    # Evita que el navegador "adivine" el tipo de contenido (anti-MIME sniffing)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    # Activa el filtro XSS del navegador (capa extra de protección)
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+
+    # Política de seguridad de contenido:
+    # Solo permite cargar recursos del mismo dominio + Google Fonts
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; "
+        "script-src 'self' 'unsafe-inline'; "
+        "connect-src 'self';"
+    )
+
+    # Fuerza HTTPS: el navegador no permitirá conexiones HTTP por 1 año
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    # No enviar la URL de referencia a otros sitios (privacidad)
+    response.headers["Referrer-Policy"] = "no-referrer"
+
+    # Deshabilitar características del navegador innecesarias
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    return response
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TABLA DE CALIFICACIONES UTP
+# ══════════════════════════════════════════════════════════════════════════════
+
 TABLA_CALIFICACIONES = [
     {"min": 91, "max": 100, "letra": "A", "puntos": 3, "descripcion": "Excelente"},
     {"min": 81, "max": 90,  "letra": "B", "puntos": 2, "descripcion": "Bueno"},
@@ -39,15 +139,7 @@ TABLA_CALIFICACIONES = [
 
 
 def obtener_letra_y_puntos(nota: float) -> dict:
-    """
-    Recibe una nota numérica (0–100) y devuelve:
-      - letra    → A, B, C, D o F
-      - puntos   → valor para calcular el índice (3, 2, 1 o 0)
-      - descripcion → texto descriptivo del rendimiento
-    
-    Ejemplo:
-        obtener_letra_y_puntos(87) → {"letra": "B", "puntos": 2, "descripcion": "Bueno"}
-    """
+    """Convierte una nota numérica en letra y puntos según el sistema UTP."""
     for rango in TABLA_CALIFICACIONES:
         if rango["min"] <= nota <= rango["max"]:
             return {
@@ -55,99 +147,117 @@ def obtener_letra_y_puntos(nota: float) -> dict:
                 "puntos": rango["puntos"],
                 "descripcion": rango["descripcion"]
             }
-    # Si la nota está fuera del rango (negativa, >100), devuelve F por seguridad
     return {"letra": "F", "puntos": 0, "descripcion": "Nota inválida"}
 
 
-# ── RUTA PRINCIPAL: Página de inicio ─────────────────────────────────────────
+def sanitizar_nombre(nombre: str) -> str:
+    """
+    Limpia el nombre de una materia eliminando caracteres peligrosos.
+    Solo permite letras (incluyendo tildes), números, espacios y algunos símbolos comunes.
+    Esto previene inyección de código HTML o scripts en el nombre.
+    """
+    # Eliminar cualquier carácter que no sea letra, número, espacio, guion, punto o paréntesis
+    nombre_limpio = re.sub(r"[^\w\s\-\.\(\)áéíóúÁÉÍÓÚñÑüÜ]", "", nombre)
+    # Truncar a 100 caracteres máximo
+    return nombre_limpio[:100].strip()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  RUTAS
+# ══════════════════════════════════════════════════════════════════════════════
+
 @app.route("/")
 def index():
-    """
-    Cuando el usuario visita http://localhost:5000/
-    Flask renderiza el archivo 'templates/index.html' y lo envía al navegador.
-    """
+    """Página principal — renderiza el formulario."""
     return render_template("index.html")
 
 
-# ── RUTA API: Calcular índice académico ──────────────────────────────────────
 @app.route("/calcular", methods=["POST"])
+@rate_limit  # ← Protección: máximo 30 peticiones por minuto por IP
 def calcular():
     """
-    Endpoint que recibe los datos de materias desde el formulario (en formato JSON),
-    calcula el índice académico y devuelve los resultados.
-
-    Espera recibir un JSON con esta estructura:
-    {
-      "materias": [
-        {"nombre": "Cálculo I", "creditos": 5, "nota": 62.8},
-        {"nombre": "Inglés I",  "creditos": 3, "nota": 100},
-        ...
-      ]
-    }
-
-    Devuelve:
-    {
-      "materias": [...],   ← cada materia con letra, puntos y puntos_totales calculados
-      "total_creditos": 24,
-      "total_puntos": 26,
-      "indice": 1.08
-    }
+    Recibe las materias en JSON, valida estrictamente cada campo
+    y devuelve el índice académico calculado.
     """
-    # ── Obtener los datos enviados desde el navegador ─────────────────────────
-    datos = request.get_json()
 
-    # Validar que existan materias en la solicitud
+    # ── Validar Content-Type ──────────────────────────────────────────────────
+    # Solo aceptamos JSON, rechazar cualquier otro formato
+    if not request.is_json:
+        return jsonify({"error": "Se esperaba Content-Type: application/json"}), 415
+
+    # ── Parsear JSON de forma segura ──────────────────────────────────────────
+    try:
+        datos = request.get_json(force=False, silent=True)
+    except Exception:
+        return jsonify({"error": "JSON malformado"}), 400
+
     if not datos or "materias" not in datos:
         return jsonify({"error": "No se recibieron materias"}), 400
 
     materias_entrada = datos["materias"]
-    materias_resultado = []  # Lista donde acumularemos los resultados
-    total_creditos = 0       # Suma de todos los créditos ingresados
-    total_puntos = 0         # Suma de (créditos × puntos_por_letra) de cada materia
 
-    # ── Procesar cada materia ─────────────────────────────────────────────────
-    for materia in materias_entrada:
-        nombre   = materia.get("nombre", "Sin nombre").strip()
-        creditos = float(materia.get("creditos", 0))
-        nota     = float(materia.get("nota", 0))
+    # ── Validar que sea una lista ─────────────────────────────────────────────
+    if not isinstance(materias_entrada, list):
+        return jsonify({"error": "El campo materias debe ser una lista"}), 400
 
-        # Validaciones básicas
-        if creditos <= 0:
-            continue  # Ignorar materias con créditos inválidos
-        if not (0 <= nota <= 100):
-            nota = 0  # Forzar 0 si la nota está fuera de rango
+    # ── Límite de materias por petición (evita loops gigantes) ───────────────
+    # Nadie debería tener más de 30 materias en un semestre
+    if len(materias_entrada) > 30:
+        return jsonify({"error": "Máximo 30 materias por cálculo"}), 400
 
-        # Obtener letra y puntos según la tabla de calificaciones UTP
-        clasificacion = obtener_letra_y_puntos(nota)
+    materias_resultado = []
+    total_creditos = 0
+    total_puntos   = 0
 
-        # Calcular los puntos que esta materia aporta al índice
-        # Fórmula: créditos × puntos_por_letra
+    # ── Procesar y validar cada materia ──────────────────────────────────────
+    for i, materia in enumerate(materias_entrada):
+
+        # Debe ser un objeto/diccionario
+        if not isinstance(materia, dict):
+            continue
+
+        # Extraer y sanitizar nombre
+        nombre_raw = str(materia.get("nombre", "Sin nombre"))
+        nombre     = sanitizar_nombre(nombre_raw)
+        if not nombre:
+            nombre = "Sin nombre"
+
+        # Validar créditos: debe ser número entre 1 y 10
+        try:
+            creditos = float(materia.get("creditos", 0))
+            if not (1 <= creditos <= 10):
+                continue  # Ignorar créditos fuera de rango
+        except (TypeError, ValueError):
+            continue  # Ignorar si no es número
+
+        # Validar nota: debe ser número entre 0 y 100
+        try:
+            nota = float(materia.get("nota", 0))
+            if not (0 <= nota <= 100):
+                nota = 0  # Forzar 0 si está fuera de rango
+        except (TypeError, ValueError):
+            nota = 0
+
+        # Calcular letra y puntos
+        clasificacion  = obtener_letra_y_puntos(nota)
         puntos_materia = creditos * clasificacion["puntos"]
 
-        # Acumular totales
         total_creditos += creditos
         total_puntos   += puntos_materia
 
-        # Guardar el resultado de esta materia
         materias_resultado.append({
-            "nombre":        nombre,
-            "nota":          nota,
-            "creditos":      creditos,
-            "letra":         clasificacion["letra"],
-            "puntos_letra":  clasificacion["puntos"],
-            "puntos_total":  puntos_materia,
-            "descripcion":   clasificacion["descripcion"]
+            "nombre":       nombre,
+            "nota":         nota,
+            "creditos":     creditos,
+            "letra":        clasificacion["letra"],
+            "puntos_letra": clasificacion["puntos"],
+            "puntos_total": puntos_materia,
+            "descripcion":  clasificacion["descripcion"]
         })
 
-    # ── Calcular el índice académico ──────────────────────────────────────────
-    # Fórmula oficial UTP: Índice = Total de puntos / Total de créditos
-    # Si no hay créditos, el índice es 0 (evitar división por cero)
-    if total_creditos > 0:
-        indice = round(total_puntos / total_creditos, 4)
-    else:
-        indice = 0.0
+    # ── Calcular índice ───────────────────────────────────────────────────────
+    indice = round(total_puntos / total_creditos, 4) if total_creditos > 0 else 0.0
 
-    # ── Devolver los resultados en formato JSON al navegador ──────────────────
     return jsonify({
         "materias":       materias_resultado,
         "total_creditos": total_creditos,
@@ -156,13 +266,36 @@ def calcular():
     })
 
 
-# ── Punto de entrada: ejecutar el servidor ────────────────────────────────────
-# Este bloque solo se ejecuta cuando corres "python app.py" directamente.
-# debug=True recarga automáticamente el servidor cuando cambias el código.
-# host="0.0.0.0" permite acceder desde cualquier dispositivo en la red local.
+# ── Manejadores de errores globales ──────────────────────────────────────────
+# Devuelven JSON en lugar de páginas HTML de error por defecto
+
+@app.errorhandler(404)
+def not_found(e):
+    """Página no encontrada."""
+    return jsonify({"error": "Ruta no encontrada"}), 404
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    """Método HTTP no permitido."""
+    return jsonify({"error": "Método no permitido"}), 405
+
+@app.errorhandler(413)
+def request_too_large(e):
+    """Petición demasiado grande (supera 16 KB)."""
+    return jsonify({"error": "Petición demasiado grande"}), 413
+
+@app.errorhandler(429)
+def too_many_requests(e):
+    """Demasiadas peticiones."""
+    return jsonify({"error": "Demasiadas peticiones. Espera un momento."}), 429
+
+
+# ── Punto de entrada ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=" * 55)
     print("  🎓 Calculadora UTP Panamá - Servidor iniciado")
     print("  🌐 Abre tu navegador en: http://localhost:5000")
+    print("  🔒 Modo seguro activado")
     print("=" * 55)
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    # debug=False en producción para no exponer información interna
+    app.run(debug=False, host="0.0.0.0", port=5000)
