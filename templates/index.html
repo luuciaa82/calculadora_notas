@@ -500,7 +500,7 @@
 }
   </style>
 </head>
-
+<script src="/static/pensum_data.js"></script>
 <body>
   <!-- Botón flotante para cambiar entre modo oscuro y claro -->
 <button class="btn-tema" onclick="toggleTema()" id="btn-tema">🌙</button>
@@ -571,7 +571,43 @@
           <div class="scale-desc">Reprobado</div>
         </div>
       </div>
+<!-- Selector de pensum por facultad, carrera y semestre -->
+<div class="card-title">Cargar Materias desde el Pensum</div>
+<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.6rem; margin-bottom:1rem;">
 
+  <!-- Paso 1: Seleccionar facultad -->
+  <div class="field-group">
+    <label class="field-label">Facultad</label>
+    <select id="sel-facultad" onchange="cargarCarreras()" style="width:100%; background:var(--bg-deep); border:1px solid var(--border); color:var(--text-main); border-radius:2px; padding:0.45rem 0.65rem; font-family:'IBM Plex Sans',sans-serif; font-size:0.88rem; outline:none;">
+      <option value="">— Selecciona —</option>
+      <option value="FIE">FIE — Ingeniería Eléctrica</option>
+      <option value="FIM">FIM — Ingeniería Mecánica</option>
+      <option value="FISC">FISC — Sistemas Computacionales</option>
+    </select>
+  </div>
+
+  <!-- Paso 2: Seleccionar carrera -->
+  <div class="field-group">
+    <label class="field-label">Carrera</label>
+    <select id="sel-carrera" onchange="cargarSemestres()" style="width:100%; background:var(--bg-deep); border:1px solid var(--border); color:var(--text-main); border-radius:2px; padding:0.45rem 0.65rem; font-family:'IBM Plex Sans',sans-serif; font-size:0.88rem; outline:none;">
+      <option value="">— Primero elige facultad —</option>
+    </select>
+  </div>
+
+  <!-- Paso 3: Seleccionar semestre -->
+  <div class="field-group">
+    <label class="field-label">Semestre</label>
+    <select id="sel-semestre" style="width:100%; background:var(--bg-deep); border:1px solid var(--border); color:var(--text-main); border-radius:2px; padding:0.45rem 0.65rem; font-family:'IBM Plex Sans',sans-serif; font-size:0.88rem; outline:none;">
+      <option value="">— Primero elige carrera —</option>
+    </select>
+  </div>
+
+</div>
+
+<!-- Botón para cargar las materias del semestre seleccionado -->
+<button class="btn btn-secondary" onclick="cargarDesdenPensum()" style="margin-bottom:1.25rem;">
+  ↓ Cargar materias del semestre
+</button>
       <!-- Formulario de materias -->
       <div class="card-title">Mis Materias</div>
       <div id="materias-container"></div>
@@ -811,6 +847,64 @@
     }
 
     cargarMateriasIniciales();
+    // ── Funciones del selector de pensum ────────────────────
+
+function cargarCarreras() {
+  const facultad = document.getElementById("sel-facultad").value;
+  const selCarrera = document.getElementById("sel-carrera");
+  const selSemestre = document.getElementById("sel-semestre");
+
+  selCarrera.innerHTML = '<option value="">— Selecciona carrera —</option>';
+  selSemestre.innerHTML = '<option value="">— Primero elige carrera —</option>';
+
+  if (!facultad || !PENSUM[facultad]) return;
+
+  const carreras = PENSUM[facultad].carreras;
+  for (const [key, carrera] of Object.entries(carreras)) {
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = carrera.nombre;
+    selCarrera.appendChild(opt);
+  }
+}
+
+function cargarSemestres() {
+  const facultad = document.getElementById("sel-facultad").value;
+  const carreraKey = document.getElementById("sel-carrera").value;
+  const selSemestre = document.getElementById("sel-semestre");
+
+  selSemestre.innerHTML = '<option value="">— Selecciona semestre —</option>';
+  if (!facultad || !carreraKey) return;
+
+  const semestres = PENSUM[facultad].carreras[carreraKey].semestres;
+  for (const nombre of Object.keys(semestres)) {
+    const opt = document.createElement("option");
+    opt.value = nombre;
+    opt.textContent = nombre;
+    selSemestre.appendChild(opt);
+  }
+}
+
+function cargarDesdenPensum() {
+  const facultad  = document.getElementById("sel-facultad").value;
+  const carreraKey = document.getElementById("sel-carrera").value;
+  const semestre  = document.getElementById("sel-semestre").value;
+
+  if (!facultad || !carreraKey || !semestre) {
+    alert("Por favor selecciona facultad, carrera y semestre.");
+    return;
+  }
+
+  const materias = PENSUM[facultad].carreras[carreraKey].semestres[semestre];
+
+  // Limpiar filas actuales y cargar las del semestre
+  document.getElementById("materias-container").innerHTML = "";
+  contadorMaterias = 0;
+
+  for (const m of materias) {
+    agregarMateria(m.nombre, m.creditos, "");
+  }
+}
   </script>
 </body>
 </html>
